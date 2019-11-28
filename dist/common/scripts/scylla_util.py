@@ -26,7 +26,6 @@ import shutil
 import subprocess
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 import yaml
 import psutil
@@ -167,7 +166,7 @@ class aws_instance:
         return self._type.split(".")[0]
 
     def is_supported_instance_class(self):
-        if self.instance_class() in ['i2', 'i3', 'i3en', 'c5d', 'm5d', 'm5ad', 'r5d', 'z1d']:
+        if self.instance_class() in ['i2', 'i3', 'i3en']:
             return True
         return False
 
@@ -520,14 +519,36 @@ def get_tune_mode(nic):
         return 'sq_split'
 
 
-def create_perftune_conf(nic='eth0'):
-    if os.path.exists('/etc/scylla.d/perftune.yaml'):
-        return
-    mode = get_tune_mode(nic)
-    yaml = out('/opt/scylladb/scripts/perftune.py --tune net --nic "{nic}" --mode {mode} --dump-options-file'.format(nic=nic, mode=mode))
-    with open('/etc/scylla.d/perftune.yaml', 'w') as f:
-        f.write(yaml)
+def create_perftune_conf(cfg):
+    """
+    This function checks if a perftune configuration file should be created and
+    creates it if so is the case, returning a boolean accordingly. It returns False
+    if none of the perftune options are enabled in scylla_server file. If the perftune
+    configuration file already exists, none is created.
+    :return boolean indicating if perftune.py should be executed
+    """
+    params = ''
+    if get_set_nic_and_disks_config_value(cfg) == 'yes':
+        nic = cfg.get('IFNAME')
+        if not nic:
+            nic = 'eth0'
+        params += '--tune net --nic "{nic}"'.format(nic=nic)
 
+    if cfg.get('CLOCKSOURCE') == 'yes':
+        params += ' --tune-clock'
+
+    if len(params) > 0:
+        if os.path.exists('/etc/scylla.d/perftune.yaml'):
+            return True
+        
+        mode = get_tune_mode(nic)
+        params += ' --mode {mode} --dump-options-file'.format(mode=mode)
+        yaml = out('/opt/scylladb/scripts/perftune.py '+params)
+        with open('/etc/scylla.d/perftune.yaml', 'w') as f:
+            f.write(yaml)
+        return True
+    else:
+        return False
 
 def is_valid_nic(nic):
     if len(nic) == 0:

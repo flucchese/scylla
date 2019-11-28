@@ -20,11 +20,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Scylla.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
-import sys
 import argparse
-import subprocess
-import re
 from scylla_util import *
 
 def bool2str(val):
@@ -42,6 +38,7 @@ if __name__ == '__main__':
     else:
         cfg = sysconfig_parser('/etc/default/scylla-server')
     set_nic_and_disks = str2bool(get_set_nic_and_disks_config_value(cfg))
+    clocksource = str2bool(cfg.get('CLOCKSOURCE'))
     ami = str2bool(cfg.get('AMI'))
 
     parser = argparse.ArgumentParser(description='Setting parameters on Scylla sysconfig file.')
@@ -61,6 +58,8 @@ if __name__ == '__main__':
                         help='scylla config directory')
     parser.add_argument('--setup-nic-and-disks', action='store_true', default=set_nic_and_disks,
                         help='setup NIC\'s and disks\' interrupts, RPS, XPS, nomerges and I/O scheduler')
+    parser.add_argument('--clocksource', action='store_true', default=clocksource,
+                        help='Set enforcing Linux clocksource')
     parser.add_argument('--ami', action='store_true', default=ami,
                         help='AMI instance mode')
     args = parser.parse_args()
@@ -112,6 +111,9 @@ if __name__ == '__main__':
         else:
             cfg.set('SET_NIC_AND_DISKS', bool2str(args.setup_nic_and_disks))
 
+    if str2bool(cfg.get('CLOCKSOURCE')) != args.tsc_clocksource:
+        cfg.set('CLOCKSOURCE', bool2str(args.tsc_clocksource))
+        
     if str2bool(cfg.get('AMI')) != args.ami:
         cfg.set('AMI', bool2str(args.ami))
     cfg.commit()
